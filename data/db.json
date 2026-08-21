@@ -1,0 +1,31 @@
+{
+  "users": [
+    {
+      "id": "a88180dc-b20b-4ac9-a8df-5a380be6cfb5",
+      "name": "vf",
+      "touristType": "domestic",
+      "language": "english",
+      "token": "fbf48d8ea100a9eb03513d0c7900eff660c5b3ecdef083ba",
+      "createdAt": "2026-08-21T07:20:43.723Z"
+    },
+    {
+      "id": "0d5c7d78-4c4c-4c71-95e7-1c35f96744c9",
+      "name": "asdf",
+      "touristType": "domestic",
+      "language": "english",
+      "token": "16ecf77244b057c1ede1913d8bce9c1abb885698d17ccbcc",
+      "createdAt": "2026-08-21T08:03:57.027Z"
+    }
+  ],
+  "itineraries": [],
+  "sosAlerts": [
+    {
+      "id": "c3ec4630-6510-411b-bcd9-86ff1ea5e8cd",
+      "userId": "a88180dc-b20b-4ac9-a8df-5a380be6cfb5",
+      "userName": "vf",
+      "triggeredAt": "2026-08-21T07:22:21.739Z",
+      "location": "Unknown (location sharing simulated)"
+    }
+  ],
+  "contactMessages": []
+}

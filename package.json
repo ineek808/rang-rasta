@@ -1,0 +1,17 @@
+{
+  "name": "rangrasta",
+  "version": "1.0.0",
+  "description": "RangRasta - Experience True Jaipur. Full-stack tourism platform (Express backend + React frontend served together).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

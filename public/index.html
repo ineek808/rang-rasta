@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RangRasta - Your Jaipur Guide</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'jaipur-pink': '#d81b60',
+                        'jaipur-orange': '#f57c00',
+                        'jaipur-sand': '#fdf8f5',
+                        'jaipur-dark': '#2d3748',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Merriweather', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #fdf8f5; color: #2d3748; }
+        .font-serif { font-family: 'Merriweather', serif; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.3); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .loader {
+            border: 4px solid #f3f3f3; border-top: 4px solid #d81b60;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .reveal-on-scroll {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .reveal-on-scroll.is-visible { opacity: 1; transform: translateY(0); }
+
+        .category-tag {
+            color: #d97706;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input[type="range"].rr-range {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 6px; border-radius: 999px;
+            background: linear-gradient(90deg, #d81b60 0%, #d81b60 var(--fill, 50%), #e5e7eb var(--fill, 50%), #e5e7eb 100%);
+            outline: none;
+        }
+        input[type="range"].rr-range::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #ffffff; border: 3px solid #d81b60;
+            cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        input[type="range"].rr-range::-moz-range-thumb {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #ffffff; border: 3px solid #d81b60;
+            cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const API_BASE = '/api';
+
+        async function apiFetch(path, options = {}) {
+            const savedUser = localStorage.getItem('rangRastaUser');
+            const token = savedUser ? JSON.parse(savedUser).token : null;
+            const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Something went wrong');
+            return data;
+        }
+
+        // Custom hook for scroll animation
+        const useScrollReveal = (deps = []) => {
+            useEffect(() => {
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) entry.target.classList.add('is-visible');
+                    });
+                }, { root: null, rootMargin: '0px', threshold: 0.1 });
+
+                const elements = document.querySelectorAll('.reveal-on-scroll');
+                elements.forEach(el => observer.observe(el));
+                return () => elements.forEach(el => observer.unobserve(el));
+            }, deps);
+        };
+
+        // ---------------------------------------------------------------
+        // Icons
+        // ---------------------------------------------------------------
+        const Icon = ({ name, size=24, className="" }) => {
+            const icons = {
+                home: <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>,
+                compass: <g><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></g>,
+                map: <g><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></g>,
+                calendar: <g><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></g>,
+                user: <g><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></g>,
+                search: <g><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></g>,
+                star: <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>,
+                mapPin: <g><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></g>,
+                play: <polygon points="5 3 19 12 5 21 5 3"></polygon>,
+                headset: <g><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></g>,
+                briefcase: <g><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></g>,
+                menu: <g><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></g>,
+                x: <g><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></g>,
+                more: <g><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></g>,
+                landmark: <g><path d="M3 22h18"></path><path d="M6 18v-8"></path><path d="M10 18v-8"></path><path d="M14 18v-8"></path><path d="M18 18v-8"></path><path d="M3 10l9-6 9 6"></path></g>,
+                temple: <g><path d="M12 2l7 6H5z"></path><path d="M5 8v13"></path><path d="M19 8v13"></path><path d="M9 21v-6h6v6"></path><path d="M3 21h18"></path></g>,
+                market: <g><path d="M3 7h18l-1.5 12.5a2 2 0 0 1-2 1.5H6.5a2 2 0 0 1-2-1.5L3 7z"></path><path d="M8 7V5a4 4 0 0 1 8 0v2"></path></g>,
+                food: <g><path d="M3 2v7c0 1.1.9 2 2 2h1v11"></path><path d="M9 2v20"></path><path d="M15 2c-1 0-2 1-2 3v4c0 1 1 2 2 2s2-1 2-2V5c0-2-1-3-2-3z"></path><path d="M15 11v11"></path></g>,
+                film: <g><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="2" y1="9" x2="22" y2="9"></line><line x1="2" y1="15" x2="22" y2="15"></line></g>,
+                palette: <g><path d="M12 2a10 10 0 1 0 0 20c1.5 0 2-1 2-2 0-.6-.3-1-.6-1.4-.3-.4-.5-.7-.5-1.1 0-.8.7-1.5 1.5-1.5H16a4 4 0 0 0 4-4c0-5.5-4-10-8-10z"></path><circle cx="7.5" cy="10.5" r="1"></circle><circle cx="10.5" cy="7.5" r="1"></circle><circle cx="15" cy="8" r="1"></circle></g>,
+                tree: <g><path d="M12 2l5 8h-3l4 6h-4v6h-4v-6H6l4-6H7z"></path></g>,
+                kite: <g><path d="M12 2l6 8-6 12-6-12z"></path><path d="M12 2v20"></path></g>,
+                drop: <path d="M12 2s7 7.5 7 12a7 7 0 0 1-14 0c0-4.5 7-12 7-12z"></path>,
+                users: <g><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></g>,
+                book: <g><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></g>,
+                plane: <path d="M2 16l20-9-4 9 4 9-20-9 8-2z"></path>,
+                train: <g><rect x="4" y="3" width="16" height="14" rx="2"></rect><path d="M4 11h16"></path><circle cx="8" cy="17.5" r="0" ></circle><path d="M7 21l1.5-3M17 21l-1.5-3"></path><circle cx="8" cy="14" r="1"></circle><circle cx="16" cy="14" r="1"></circle></g>,
+                bus: <g><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M3 12h18"></path><circle cx="7" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></g>,
+                car: <g><path d="M3 13l2-6a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 6"></path><rect x="2" y="13" width="20" height="6" rx="2"></rect><circle cx="7" cy="19" r="1.3"></circle><circle cx="17" cy="19" r="1.3"></circle></g>,
+                ticket: <g><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"></path><line x1="13" y1="6" x2="13" y2="18" strokeDasharray="2 2"></line></g>,
+                mail: <g><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M22 6l-10 7L2 6"></path></g>,
+                phone: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z"></path>,
+                navigation: <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>,
+                sliders: <g><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></g>,
+                check: <polyline points="20 6 9 17 4 12"></polyline>,
+                info: <g><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></g>,
+                clock: <g><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></g>,
+            };
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name] || icons.mapPin}
+                </svg>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // Generated card art — every place/festival gets a unique gradient
+        // (derived from its id, so it never repeats) plus a category icon.
+        // This replaces stock photography so nothing is ever duplicated.
+        // ---------------------------------------------------------------
+        const hueGradient = (seed) => {
+            const h1 = (seed * 47) % 360;
+            const h2 = (h1 + 42) % 360;
+            return `linear-gradient(135deg, hsl(${h1}deg 68% 50%), hsl(${h2}deg 72% 36%))`;
+        };
+        const CardArt = ({ seed, icon, className = "", iconSize = 40 }) => (
+            <div className={`relative flex items-center justify-center overflow-hidden ${className}`} style={{ background: hueGradient(seed || 1) }}>
+                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 25% 20%, white 0, transparent 45%)' }}></div>
+                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 90%, white 0, transparent 35%)' }}></div>
+                <Icon name={icon || 'mapPin'} size={iconSize} className="text-white relative z-10 drop-shadow" />
+            </div>
+        );
+
+        const TYPE_LABELS = { historical: 'Historical', museum: 'Museum', temple: 'Temple', market: 'Bazaar', eat: 'Food', cinema: 'Cinema', arts: 'Arts', nature: 'Nature' };
+
+        // ---------------------------------------------------------------
+        // Real photography — one distinct, freely-licensed (Wikimedia
+        // Commons / Wikipedia) photo per place and per festival, matched to
+        // what that entry actually is. No two entries share an image.
+        // wmFilePath() builds a stable hotlink via Special:FilePath, which
+        // redirects straight to the current file without needing a hash.
+        // ---------------------------------------------------------------
+        const wmFilePath = (host, filename) => `https://${host}/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=900`;
+
+        const PLACE_IMAGES = {
+            1: wmFilePath('commons.wikimedia.org', 'Hawa Mahal Jaipur.jpg'),
+            2: wmFilePath('commons.wikimedia.org', 'Jaipur 03-2016 05 Amber Fort.jpg'),
+            3: wmFilePath('commons.wikimedia.org', 'Jaipur 03-2016 22 City Palace complex.jpg'),
+            4: wmFilePath('commons.wikimedia.org', 'Jantar Mantar at Jaipur.jpg'),
+            5: wmFilePath('commons.wikimedia.org', 'Nahargarh fort jaipur.jpg'),
+            6: wmFilePath('commons.wikimedia.org', 'Jaivana cannon at Jaigarh fort in Jaipur, Rajasthan, India.jpg'),
+            7: wmFilePath('commons.wikimedia.org', 'Jaipur 03-2016 39 Jal Mahal - Water Palace.jpg'),
+            8: wmFilePath('commons.wikimedia.org', 'Patrika Gate Jawahar Circle Jaipur 2022-07.jpg'),
+            9: wmFilePath('commons.wikimedia.org', 'Albert Hall museum, Jaipur.jpg'),
+            10: wmFilePath('commons.wikimedia.org', 'ChandBaori.jpg'),
+            11: wmFilePath('commons.wikimedia.org', 'Birla mandir jaipur.JPG'),
+            12: wmFilePath('commons.wikimedia.org', 'Galtaji the monkey temple.jpg'),
+            13: wmFilePath('commons.wikimedia.org', 'Bazaars near Hawa Mahal.jpg'),
+            14: wmFilePath('commons.wikimedia.org', 'JaipurBazaarStrasse-NaheAjmerGate-SDIM1324.jpg'),
+            15: wmFilePath('commons.wikimedia.org', 'Tripoliya Bazaar across from Tripolia Pol Gate.jpg'),
+            16: wmFilePath('commons.wikimedia.org', 'Jaipur, Chandpol Bazar Road.jpg'),
+            17: wmFilePath('commons.wikimedia.org', 'Rajasthani Food.JPG'),
+            18: wmFilePath('commons.wikimedia.org', 'Rajasthani Pyaz ki Kachori.JPG'),
+            19: wmFilePath('commons.wikimedia.org', '20191216 Uliczny bar w Adźmerze 1232 8905.jpg'),
+            20: wmFilePath('commons.wikimedia.org', 'Raj Mandir Theatre, Jaipur.jpg'),
+            21: wmFilePath('commons.wikimedia.org', 'Jawahar Kala Kendra, Jaipur, Rajasthan.jpg'),
+            22: wmFilePath('en.wikipedia.org', 'Central Park Statue.JPG'),
+            23: wmFilePath('commons.wikimedia.org', 'Rani Sisodia Garden.jpg'),
+        };
+
+        const FESTIVAL_IMAGES = [
+            wmFilePath('commons.wikimedia.org', 'Kite Festival in India.jpg'),
+            wmFilePath('commons.wikimedia.org', 'Decorated Indian elephant.jpg'),
+            wmFilePath('commons.wikimedia.org', 'The children celebrating Holi, in New Delhi on March 11, 2009.jpg'),
+            wmFilePath('commons.wikimedia.org', 'Gangore Nritya Malwa India.jpg'),
+            wmFilePath('commons.wikimedia.org', "Young girls taking the joy of swing 'Jhoola' during the 'Teej Festival' at Dilli Haat in New Delhi on August 07, 2005.jpg"),
+            wmFilePath('commons.wikimedia.org', 'Ranjit Hoskote at the 2025 Jaipur Literature Festival.jpg'),
+        ];
+
+        // Real photo layered over CardArt's gradient. If the photo fails to
+        // load (dead link, offline, etc.) it hides itself and the gradient
+        // + icon underneath shows through instead — so a card is never blank.
+        const PhotoArt = ({ src, alt, seed, icon, className = "", iconSize = 40 }) => (
+            <div className={`relative ${className}`}>
+                <CardArt seed={seed} icon={icon} className="absolute inset-0 h-full w-full" iconSize={iconSize} />
+                {src && (
+                    <img
+                        src={src}
+                        alt={alt || ''}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        className="absolute inset-0 h-full w-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                )}
+            </div>
+        );
+
+        // ---------------------------------------------------------------
+        // Login
+        // ---------------------------------------------------------------
+        const LoginScreen = ({ onLogin }) => {
+            const [name, setName] = useState('');
+            const [touristType, setTouristType] = useState('domestic');
+            const [language, setLanguage] = useState('english');
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (name.trim() === '') return;
+                setIsSubmitting(true);
+                setError('');
+                try {
+                    const { user } = await apiFetch('/auth/signup', {
+                        method: 'POST',
+                        body: JSON.stringify({ name, touristType, language })
+                    });
+                    localStorage.setItem('rangRastaUser', JSON.stringify(user));
+                    onLogin(user);
+                } catch (err) {
+                    setError(err.message || 'Could not start your journey. Please try again.');
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4 relative bg-cover bg-center" style={{ backgroundImage: `url(${wmFilePath('commons.wikimedia.org', 'Bazaars near Hawa Mahal.jpg')})` }}>
+                    <div className="absolute inset-0 bg-black/45"></div>
+                    <div className="bg-[#f2efec] p-10 rounded-2xl w-full max-w-md relative z-10 shadow-2xl">
+                        <div className="text-center mb-8">
+                            <h1 className="text-4xl font-serif text-jaipur-pink font-bold mb-2">RangRasta</h1>
+                            <p className="text-gray-600 italic">Experience True Jaipur</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-5">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                                <input type="text" value={name} onChange={e=>setName(e.target.value)} required
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jaipur-pink focus:border-transparent outline-none bg-white" placeholder="Enter your name" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tourist Type</label>
+                                <div className="flex space-x-4">
+                                    <label className="flex items-center">
+                                        <input type="radio" value="domestic" checked={touristType==='domestic'} onChange={e=>setTouristType(e.target.value)} className="mr-2 text-jaipur-pink focus:ring-jaipur-pink" /> Domestic
+                                    </label>
+                                    <label className="flex items-center">
+                                        <input type="radio" value="international" checked={touristType==='international'} onChange={e=>setTouristType(e.target.value)} className="mr-2 text-jaipur-pink focus:ring-jaipur-pink" /> International
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Language</label>
+                                <select value={language} onChange={e=>setLanguage(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jaipur-pink outline-none bg-white">
+                                    <option value="english">English</option>
+                                    <option value="hindi">Hindi (हिंदी)</option>
+                                    <option value="french">French (Français)</option>
+                                    <option value="spanish">Spanish (Español)</option>
+                                </select>
+                            </div>
+                            {error && <p className="text-red-600 text-sm">{error}</p>}
+                            <button type="submit" disabled={isSubmitting} className={`w-full text-white font-bold py-3.5 px-4 rounded-lg transition duration-200 shadow-lg ${isSubmitting ? 'bg-pink-400' : 'bg-jaipur-pink hover:bg-pink-700'}`}>
+                                {isSubmitting ? 'Starting your journey...' : 'Begin Journey'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // Generic modal shell, reused by City Calendar + all "More" pages
+        // ---------------------------------------------------------------
+        const InfoModal = ({ title, subtitle, onClose, children, wide }) => (
+            <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+                <div className={`bg-white rounded-2xl w-full ${wide ? 'max-w-4xl' : 'max-w-2xl'} max-h-[90vh] overflow-y-auto shadow-2xl relative`}>
+                    <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 bg-gray-100 p-2 rounded-full z-10">
+                        <Icon name="x" size={20} />
+                    </button>
+                    <div className="p-6 md:p-8">
+                        <h2 className="text-3xl font-serif text-jaipur-dark font-bold mb-1">{title}</h2>
+                        {subtitle && <p className="text-gray-600 mb-6">{subtitle}</p>}
+                        {children}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const CityCalendar = ({ onClose, calendarData }) => (
+            <InfoModal title="Jaipur City Calendar" subtitle="Weather and events by month, so you can plan your visit." onClose={onClose} wide>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {calendarData.map((month, idx) => (
+                        <div key={idx} className={`p-4 rounded-xl border ${['October','November','December','January','February','March'].includes(month.month) ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <h3 className="text-xl font-bold text-jaipur-pink mb-1">{month.month}</h3>
+                            <div className="flex items-center text-sm text-gray-500 mb-3">
+                                <span className="bg-white px-2 py-1 rounded shadow-sm text-xs">{month.weather}</span>
+                            </div>
+                            <div className="mb-3">
+                                <strong className="text-sm text-gray-700 block mb-1">Key Events:</strong>
+                                <ul className="text-sm text-gray-600 space-y-1">
+                                    {month.events.length > 0 ? month.events.map((ev, i) => <li key={i}>• {ev}</li>) : <li>• General Sightseeing</li>}
+                                </ul>
+                            </div>
+                            <div className="text-xs text-jaipur-orange bg-orange-100 p-2 rounded">
+                                <strong>Tip:</strong> {month.tip}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </InfoModal>
+        );
+
+        // ---------------------------------------------------------------
+        // Reusable place card (used on Home + Explore)
+        // ---------------------------------------------------------------
+        const PlaceCard = ({ place, onClick, delay = 0 }) => (
+            <div
+                onClick={onClick}
+                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 transition hover:shadow-lg cursor-pointer reveal-on-scroll"
+                style={{ transitionDelay: `${delay}ms` }}
+            >
+                <div className="h-44 relative">
+                    <PhotoArt src={PLACE_IMAGES[place.id]} alt={place.name} seed={place.id} icon={place.icon} className="h-full w-full" />
+                    <div className="absolute top-3 left-3 bg-white/90 text-jaipur-dark text-xs font-bold px-2 py-1 rounded shadow uppercase tracking-wide">
+                        {TYPE_LABELS[place.type] || place.type}
+                    </div>
+                    <div className="absolute bottom-3 right-3 bg-black/60 text-white px-2 py-1 rounded text-xs backdrop-blur-sm">
+                        {place.distance} km
+                    </div>
+                </div>
+                <div className="p-5">
+                    <div className="flex justify-between items-start mb-1">
+                        <h4 className="text-lg font-bold text-gray-900 leading-tight">{place.name}</h4>
+                        <span className="text-sm font-medium text-gray-500">{place.price}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500 mb-3">
+                        <Icon name="star" size={14} className="text-yellow-500 mr-1" /> {place.rating}
+                        <span className="mx-2 text-gray-300">•</span>
+                        {(place.tags || []).slice(0, 2).join(', ')}
+                    </div>
+                    <p className="text-sm text-gray-600 line-clamp-2">{place.desc}</p>
+                </div>
+            </div>
+        );
+
+        // ---------------------------------------------------------------
+        // Home tab — hero, popular places, festivals, quick facts
+        // ---------------------------------------------------------------
+        const HomeTab = ({ user, openCalendar, places, festivals, history, setActiveTab, setSelectedPlace }) => {
+            useScrollReveal([places, festivals]);
+            const popular = places.filter(p => ['Hawa Mahal', 'Amer Fort', 'City Palace', 'Nahargarh Fort'].includes(p.name));
+
+            return (
+                <div className="pb-24 bg-[#fdf8f5]">
+                    {/* Hero */}
+                    <div className="relative h-80 md:h-96 w-full rounded-b-3xl overflow-hidden shadow-lg">
+                        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${wmFilePath('commons.wikimedia.org', 'Hawa Mahal Jaipur.jpg')})` }}></div>
+                        <div className="absolute inset-0 bg-black/45"></div>
+                        <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-4">
+                            <h2 className="text-4xl md:text-6xl font-serif text-white font-bold mb-3 tracking-wide drop-shadow-md">Padharo Sa, {user.name}!</h2>
+                            <p className="text-lg text-pink-50 mb-6 max-w-xl font-light">Practical, up-to-date info on Jaipur's forts, bazaars, food and festivals.</p>
+                            <div className="flex flex-wrap gap-3 justify-center">
+                                <button onClick={openCalendar} className="bg-white/20 backdrop-blur-md border border-white/50 text-white px-5 py-2.5 rounded-full flex items-center hover:bg-white/30 transition shadow-lg text-sm font-medium">
+                                    <Icon name="calendar" size={18} className="mr-2" /> City Calendar
+                                </button>
+                                <button onClick={() => setActiveTab('planner')} className="bg-white text-jaipur-pink px-5 py-2.5 rounded-full flex items-center hover:bg-pink-50 transition shadow-lg text-sm font-bold">
+                                    <Icon name="sliders" size={18} className="mr-2" /> Plan My Trip
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto px-4 mt-14">
+                        {/* Popular Places */}
+                        <div className="mb-16">
+                            <div className="text-center mb-8 reveal-on-scroll">
+                                <h3 className="text-3xl font-serif font-bold text-jaipur-dark">Popular Places</h3>
+                                <p className="text-gray-500 mt-1">The most-visited landmarks in the city</p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {popular.map((place, index) => (
+                                    <PlaceCard key={place.id} place={place} delay={index * 60} onClick={() => setSelectedPlace(place)} />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Festivals */}
+                        <div className="mb-16 reveal-on-scroll">
+                            <div className="text-center mb-8">
+                                <h3 className="text-3xl font-serif font-bold text-jaipur-dark">Festivals & Events</h3>
+                                <p className="text-gray-500 mt-1">What's on, and when</p>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {festivals.map((fest, idx) => (
+                                    <div key={idx} className="relative h-56 rounded-2xl overflow-hidden group reveal-on-scroll" style={{ transitionDelay: `${idx * 60}ms` }}>
+                                        <PhotoArt src={FESTIVAL_IMAGES[idx]} alt={fest.name} seed={idx * 13 + 5} icon={fest.icon} className="absolute inset-0 h-full w-full transition duration-500 group-hover:scale-105" iconSize={36} />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent"></div>
+                                        <div className="absolute bottom-0 left-0 p-5">
+                                            <div className="text-orange-200 font-bold text-xs mb-1 tracking-wider uppercase">{fest.month}</div>
+                                            <h4 className="text-xl font-serif font-bold text-white mb-1">{fest.name}</h4>
+                                            <p className="text-gray-200 text-sm line-clamp-2">{fest.desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Quick facts (replaces the old storytelling section) */}
+                        {history && (
+                            <div className="mb-8 reveal-on-scroll">
+                                <div className="text-center mb-8">
+                                    <h3 className="text-3xl font-serif font-bold text-jaipur-dark">Jaipur at a Glance</h3>
+                                    <p className="text-gray-500 mt-1">Basic facts about the city</p>
+                                </div>
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+                                    {history.quickFacts.map((f, i) => (
+                                        <div key={i}>
+                                            <div className="text-xs uppercase tracking-wide text-jaipur-orange font-bold mb-1">{f.label}</div>
+                                            <div className="text-gray-800 font-medium">{f.value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // Place details modal — practical info only (hours, fee, directions)
+        // ---------------------------------------------------------------
+        const PlaceDetailsModal = ({ place, onClose }) => {
+            const mapsUrl = place.lat && place.lng
+                ? `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' Jaipur')}`;
+
+            return (
+                <div className="fixed inset-0 bg-white z-50 overflow-y-auto flex flex-col">
+                    <div className="relative h-56 md:h-72 w-full shrink-0">
+                        <PhotoArt src={PLACE_IMAGES[place.id]} alt={place.name} seed={place.id} icon={place.icon} className="h-full w-full" iconSize={64} />
+                        <button onClick={onClose} className="absolute top-4 left-4 bg-white/90 p-2 rounded-full shadow hover:bg-white transition">
+                            <Icon name="x" size={22} className="text-gray-800" />
+                        </button>
+                        <div className="absolute bottom-4 left-4 right-4">
+                            <span className="inline-block bg-white/90 text-jaipur-dark text-xs font-bold px-2 py-1 rounded uppercase tracking-wide mb-2">{TYPE_LABELS[place.type] || place.type}</span>
+                            <h2 className="text-3xl md:text-4xl font-serif font-bold text-white drop-shadow-sm">{place.name}</h2>
+                            <p className="text-white/90 font-medium flex items-center mt-1 text-sm">
+                                <Icon name="star" size={14} className="text-yellow-300 mr-1" /> {place.rating} • {(place.tags || []).join(', ')}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="p-6 max-w-3xl mx-auto w-full flex-grow">
+                        <p className="text-lg text-gray-700 leading-relaxed mb-6">{place.desc}</p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+                                <div className="text-xs uppercase font-bold text-jaipur-orange mb-1 flex items-center"><Icon name="clock" size={14} className="mr-1"/> Hours</div>
+                                <div className="text-sm text-gray-700">{place.hours || 'Not specified'}</div>
+                            </div>
+                            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+                                <div className="text-xs uppercase font-bold text-jaipur-orange mb-1 flex items-center"><Icon name="ticket" size={14} className="mr-1"/> Entry Fee</div>
+                                <div className="text-sm text-gray-700">{place.entryFee || 'Not specified'}</div>
+                            </div>
+                            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+                                <div className="text-xs uppercase font-bold text-jaipur-orange mb-1 flex items-center"><Icon name="info" size={14} className="mr-1"/> Best Time</div>
+                                <div className="text-sm text-gray-700">{place.bestTime || 'Anytime'}</div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div className="flex items-center text-gray-700">
+                                <Icon name="mapPin" size={20} className="text-jaipur-pink mr-2" />
+                                <span className="text-sm">{place.distance} km from city center</span>
+                            </div>
+                            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center px-5 py-2.5 bg-jaipur-pink text-white rounded-lg font-medium text-sm hover:bg-pink-700 transition">
+                                <Icon name="navigation" size={16} className="mr-2" /> Get Directions
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // Explore tab — search, category filters, rating & sort controls
+        // ---------------------------------------------------------------
+        const ExploreTab = ({ places, setSelectedPlace }) => {
+            const [filter, setFilter] = useState('all');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [minRating, setMinRating] = useState(0);
+            const [sortBy, setSortBy] = useState('rating');
+
+            useScrollReveal([places, filter, searchQuery, minRating, sortBy]);
+
+            const filters = [
+                { id: 'all', label: 'All' },
+                { id: 'historical', label: 'Historical' },
+                { id: 'temple', label: 'Temples' },
+                { id: 'museum', label: 'Museums' },
+                { id: 'market', label: 'Bazaars' },
+                { id: 'eat', label: 'Food' },
+                { id: 'nature', label: 'Nature & Parks' },
+                { id: 'arts', label: 'Arts' },
+                { id: 'cinema', label: 'Cinema' },
+                { id: 'near_me', label: 'Near Me' }
+            ];
+
+            let filteredPlaces = places.filter(p => {
+                if (filter !== 'all' && filter !== 'near_me' && p.type !== filter) return false;
+                if (filter === 'near_me' && p.distance >= 5.0) return false;
+                if (p.rating < minRating) return false;
+                if (searchQuery) {
+                    const q = searchQuery.toLowerCase();
+                    return p.name.toLowerCase().includes(q) || (p.tags || []).some(t => t.toLowerCase().includes(q)) || p.type.toLowerCase().includes(q);
+                }
+                return true;
+            });
+
+            filteredPlaces = [...filteredPlaces].sort((a, b) => {
+                if (sortBy === 'rating') return b.rating - a.rating;
+                if (sortBy === 'distance') return a.distance - b.distance;
+                if (sortBy === 'name') return a.name.localeCompare(b.name);
+                return 0;
+            });
+
+            return (
+                <div className="pb-24 pt-6 max-w-6xl mx-auto px-4">
+                    <h2 className="text-3xl font-serif font-bold text-jaipur-dark mb-6">Explore Jaipur</h2>
+
+                    {/* Search */}
+                    <div className="relative mb-4">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Icon name="search" className="text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            className="w-full pl-10 pr-4 py-3 border-none bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-jaipur-pink outline-none"
+                            placeholder="Search monuments, bazaars, food..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Category filters */}
+                    <div className="flex overflow-x-auto hide-scrollbar space-x-2 mb-4 pb-2">
+                        {filters.map(f => (
+                            <button
+                                key={f.id}
+                                onClick={() => setFilter(f.id)}
+                                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition ${filter === f.id ? 'bg-jaipur-dark text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                            >
+                                {f.id === 'near_me' && <Icon name="mapPin" size={14} className="inline mr-1 -mt-1"/>}
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Rating + sort controls */}
+                    <div className="flex flex-wrap items-center gap-3 mb-8">
+                        <span className="text-xs uppercase font-bold text-gray-400 mr-1">Rating</span>
+                        {[0, 4.5, 4.7].map(r => (
+                            <button key={r} onClick={() => setMinRating(r)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${minRating === r ? 'bg-orange-100 border-jaipur-orange text-jaipur-orange' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                {r === 0 ? 'Any' : `${r}+`}
+                            </button>
+                        ))}
+                        <span className="text-xs uppercase font-bold text-gray-400 ml-4 mr-1">Sort</span>
+                        <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 bg-white text-gray-600 focus:ring-2 focus:ring-jaipur-pink outline-none">
+                            <option value="rating">Top Rated</option>
+                            <option value="distance">Nearest First</option>
+                            <option value="name">Name (A–Z)</option>
+                        </select>
+                    </div>
+
+                    {filter === 'near_me' && (
+                        <div className="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl mb-6 flex items-start text-sm shadow-sm">
+                            <Icon name="compass" className="shrink-0 mr-3 mt-0.5 text-blue-500" />
+                            <div>Showing places within 5 km of the city center, nearest first.</div>
+                        </div>
+                    )}
+
+                    {/* Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredPlaces.map((place, index) => (
+                            <PlaceCard key={place.id} place={place} delay={index * 40} onClick={() => setSelectedPlace(place)} />
+                        ))}
+                        {filteredPlaces.length === 0 && (
+                            <div className="col-span-full py-12 text-center text-gray-500">
+                                No places found matching your criteria. Try adjusting the filters or search term.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // AI Tour Planner — days/budget sliders, pace, interests, companions
+        // ---------------------------------------------------------------
+        const INTEREST_OPTIONS = ["Heritage & forts", "Local food", "Shopping & bazaars", "Photography", "Spiritual & temples", "Nightlife", "Nature & hills", "Art & crafts"];
+        const PACE_OPTIONS = [{ id: 'relaxed', label: 'Relaxed' }, { id: 'balanced', label: 'Balanced' }, { id: 'packed', label: 'Packed' }];
+        const COMPANION_OPTIONS = ['Solo', 'Couple', 'Family', 'Friends', 'Group'];
+
+        const AITourPlanner = ({ user, places }) => {
+            const [days, setDays] = useState(2);
+            const [budgetINR, setBudgetINR] = useState(8000);
+            const [pace, setPace] = useState('balanced');
+            const [interests, setInterests] = useState(['Heritage & forts', 'Local food']);
+            const [companions, setCompanions] = useState('Solo');
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [itinerary, setItinerary] = useState(null);
+            const [error, setError] = useState('');
+            const [saveStatus, setSaveStatus] = useState('idle');
+
+            useScrollReveal([itinerary]);
+
+            const placeById = useMemo(() => {
+                const map = {};
+                places.forEach(p => { map[p.id] = p; });
+                return map;
+            }, [places]);
+
+            const toggleInterest = (interest) => {
+                setInterests(prev => prev.includes(interest) ? prev.filter(i => i !== interest) : [...prev, interest]);
+            };
+
+            const generateItinerary = async (e) => {
+                e.preventDefault();
+                setIsGenerating(true);
+                setItinerary(null);
+                setError('');
+                setSaveStatus('idle');
+                try {
+                    const result = await apiFetch('/planner/generate', {
+                        method: 'POST',
+                        body: JSON.stringify({ days, budget: budgetINR, pace, interests, companions })
+                    });
+                    setItinerary(result.itinerary);
+                } catch (err) {
+                    setError(err.message || 'Could not generate an itinerary. Please try again.');
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            const saveItinerary = async () => {
+                if (!itinerary) return;
+                setSaveStatus('saving');
+                try {
+                    await apiFetch('/planner/save', {
+                        method: 'POST',
+                        body: JSON.stringify({ itinerary, days, budgetINR, pace, interests, companions })
+                    });
+                    setSaveStatus('saved');
+                } catch (err) {
+                    setSaveStatus('error');
+                }
+            };
+
+            const budgetPct = ((budgetINR - 1500) / (40000 - 1500)) * 100;
+            const daysPct = ((days - 1) / (7 - 1)) * 100;
+
+            return (
+                <div className="pb-24 pt-6 max-w-6xl mx-auto px-4">
+                    <div className="mb-6">
+                        <div className="text-xs font-bold text-jaipur-orange uppercase tracking-wide mb-1">AI Tour Planner</div>
+                        <h2 className="text-3xl font-serif font-bold text-jaipur-dark mb-2">Your Jaipur, budgeted and timed</h2>
+                        <p className="text-gray-600">Tell RangRasta how many days you have and what you're into — it lays out a time-and-money-aware plan.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Form */}
+                        <form onSubmit={generateItinerary} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6 h-fit">
+                            <div>
+                                <label className="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                                    <span>Days in Jaipur</span><span className="text-jaipur-pink">{days}</span>
+                                </label>
+                                <input type="range" min="1" max="7" step="1" value={days} onChange={e => setDays(Number(e.target.value))}
+                                    className="rr-range" style={{ '--fill': `${daysPct}%` }} />
+                            </div>
+
+                            <div>
+                                <label className="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                                    <span>Total Budget (₹ per person)</span><span className="text-jaipur-pink">₹{budgetINR.toLocaleString('en-IN')}{budgetINR >= 40000 ? '+' : ''}</span>
+                                </label>
+                                <input type="range" min="1500" max="40000" step="500" value={budgetINR} onChange={e => setBudgetINR(Number(e.target.value))}
+                                    className="rr-range" style={{ '--fill': `${budgetPct}%` }} />
+                                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                    <span>₹1,500</span><span>₹8,000</span><span>₹40,000+</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Pace</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {PACE_OPTIONS.map(p => (
+                                        <button type="button" key={p.id} onClick={() => setPace(p.id)}
+                                            className={`py-2 rounded-lg text-sm font-medium border transition ${pace === p.id ? 'bg-jaipur-pink text-white border-jaipur-pink' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                                            {p.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">What are you into? (pick a few)</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {INTEREST_OPTIONS.map(interest => (
+                                        <button type="button" key={interest} onClick={() => toggleInterest(interest)}
+                                            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${interests.includes(interest) ? 'bg-jaipur-pink text-white border-jaipur-pink' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                                            {interest}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Travelling With</label>
+                                <select value={companions} onChange={e => setCompanions(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jaipur-pink outline-none">
+                                    {COMPANION_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+
+                            <button type="submit" disabled={isGenerating} className={`w-full text-white font-bold py-3 rounded-lg transition shadow-lg ${isGenerating ? 'bg-pink-300' : 'bg-jaipur-pink hover:bg-pink-700'}`}>
+                                {isGenerating ? 'Crafting your plan...' : '✨ Generate My Jaipur Plan'}
+                            </button>
+                            {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+                        </form>
+
+                        {/* Result */}
+                        <div>
+                            {!itinerary && !isGenerating && (
+                                <div className="border-2 border-dashed border-gray-200 rounded-2xl h-full min-h-[320px] flex flex-col items-center justify-center text-center p-8 bg-white/50">
+                                    <Icon name="map" size={40} className="text-gray-300 mb-4" />
+                                    <p className="text-gray-500 font-medium mb-1">Your itinerary will show up here</p>
+                                    <p className="text-gray-400 text-sm">Set your days, budget and interests, then hit generate.</p>
+                                </div>
+                            )}
+                            {isGenerating && (
+                                <div className="h-full min-h-[320px] flex items-center justify-center"><div className="loader"></div></div>
+                            )}
+                            {itinerary && (
+                                <div className="animate-fadeIn">
+                                    <div className="flex flex-wrap justify-between items-end gap-3 mb-4">
+                                        <h3 className="text-xl font-bold text-jaipur-dark">Your Custom Plan</h3>
+                                        <button
+                                            onClick={saveItinerary}
+                                            disabled={saveStatus === 'saving' || saveStatus === 'saved'}
+                                            className="text-sm font-bold px-4 py-2 rounded-full bg-jaipur-pink text-white hover:bg-pink-700 transition disabled:opacity-60"
+                                        >
+                                            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved ✓' : 'Save Itinerary'}
+                                        </button>
+                                    </div>
+                                    {saveStatus === 'error' && <p className="text-red-600 text-sm mb-4">Could not save your itinerary. Please try again.</p>}
+
+                                    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
+                                        {Object.keys(itinerary).slice(0, days).map((dayKey, idx) => (
+                                            <div key={dayKey} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 reveal-on-scroll is-visible">
+                                                <h4 className="text-lg font-bold text-jaipur-pink mb-3 border-b border-pink-100 pb-2">Day {idx + 1}</h4>
+                                                <div className="space-y-3">
+                                                    {itinerary[dayKey].map((item, i) => {
+                                                        const p = item.placeId ? placeById[item.placeId] : null;
+                                                        return (
+                                                            <div key={i} className="flex items-start gap-3">
+                                                                <div className="flex items-center justify-center w-9 h-9 rounded-full bg-jaipur-orange text-white shrink-0">
+                                                                    <Icon name={p ? p.icon : 'mapPin'} size={16} />
+                                                                </div>
+                                                                <div className="flex-grow p-3 rounded-xl bg-gray-50 border border-gray-100">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <div className="font-bold text-gray-900 text-sm">{item.activity}</div>
+                                                                        <div className="text-xs font-bold text-jaipur-pink">{item.time}</div>
+                                                                    </div>
+                                                                    <div className="text-gray-600 text-xs">{item.desc}</div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // "More" tab sub-pages
+        // ---------------------------------------------------------------
+        const HistoryPage = ({ onClose, data }) => (
+            <InfoModal title="History of Jaipur" subtitle="Basic facts about the city's founding and heritage status." onClose={onClose} wide>
+                {!data ? <div className="loader my-10"></div> : (
+                    <div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                            {data.quickFacts.map((f, i) => (
+                                <div key={i} className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                                    <div className="text-xs uppercase font-bold text-jaipur-orange mb-1">{f.label}</div>
+                                    <div className="text-gray-800 font-medium text-sm">{f.value}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="space-y-5">
+                            {data.sections.map((s, i) => (
+                                <div key={i}>
+                                    <h3 className="font-bold text-gray-900 mb-1">{s.title}</h3>
+                                    <p className="text-gray-600 text-sm leading-relaxed">{s.body}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </InfoModal>
+        );
+
+        const TicketsPage = ({ onClose, places }) => (
+            <InfoModal title="Ticket Bookings" subtitle="Entry fees and hours for monuments and museums. Book or verify current prices on the official sites below." onClose={onClose} wide>
+                <div className="flex flex-wrap gap-3 mb-6">
+                    <a href="https://asi.nic.in/ticketed-monuments-alphabetical/" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-jaipur-pink text-white rounded-lg text-sm font-medium hover:bg-pink-700 transition">Archaeological Survey of India</a>
+                    <a href="https://www.tourism.rajasthan.gov.in" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition">Rajasthan Tourism</a>
+                </div>
+                <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                    {places.filter(p => p.entryFee && p.entryFee !== 'Free').map(p => (
+                        <div key={p.id} className="p-4 flex items-center justify-between gap-4 hover:bg-orange-50 transition">
+                            <div>
+                                <div className="font-bold text-gray-900 text-sm">{p.name}</div>
+                                <div className="text-gray-500 text-xs">{p.hours}</div>
+                            </div>
+                            <div className="text-jaipur-orange font-bold text-sm text-right shrink-0">{p.entryFee}</div>
+                        </div>
+                    ))}
+                </div>
+            </InfoModal>
+        );
+
+        const TravelPage = ({ onClose, data }) => {
+            const [tab, setTab] = useState('there');
+            return (
+                <InfoModal title="Travel & Hotel Bookings" subtitle="How to get to and around Jaipur, and what to expect at each hotel budget tier." onClose={onClose} wide>
+                    {!data ? <div className="loader my-10"></div> : (
+                        <div>
+                            <div className="flex gap-2 mb-6 border-b border-gray-200">
+                                {[['there', 'Getting There'], ['around', 'Getting Around'], ['stay', 'Where to Stay']].map(([id, label]) => (
+                                    <button key={id} onClick={() => setTab(id)} className={`pb-3 px-2 font-medium text-sm transition ${tab === id ? 'text-jaipur-pink border-b-2 border-jaipur-pink' : 'text-gray-500'}`}>{label}</button>
+                                ))}
+                            </div>
+                            {tab === 'there' && (
+                                <div className="space-y-3">
+                                    {data.gettingThere.map((g, i) => (
+                                        <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                            <div className="w-10 h-10 rounded-full bg-orange-100 text-jaipur-orange flex items-center justify-center shrink-0"><Icon name={g.icon} size={18} /></div>
+                                            <div>
+                                                <div className="font-bold text-gray-900 text-sm mb-1">{g.mode}</div>
+                                                <p className="text-gray-600 text-sm mb-1">{g.info}</p>
+                                                <a href={g.link} target="_blank" rel="noopener noreferrer" className="text-jaipur-pink text-xs font-medium hover:underline">Official site →</a>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {tab === 'around' && (
+                                <div className="space-y-3">
+                                    {data.localTransport.map((g, i) => (
+                                        <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                            <div className="w-10 h-10 rounded-full bg-orange-100 text-jaipur-orange flex items-center justify-center shrink-0"><Icon name={g.icon} size={18} /></div>
+                                            <div>
+                                                <div className="font-bold text-gray-900 text-sm mb-1">{g.mode}</div>
+                                                <p className="text-gray-600 text-sm">{g.info}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {tab === 'stay' && (
+                                <div className="space-y-3">
+                                    {data.hotelCategories.map((h, i) => (
+                                        <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <div className="font-bold text-gray-900 text-sm">{h.tier}</div>
+                                                <div className="text-jaipur-orange font-bold text-xs">{h.range}</div>
+                                            </div>
+                                            <p className="text-gray-600 text-sm">{h.info}</p>
+                                        </div>
+                                    ))}
+                                    <div className="flex flex-wrap gap-3 pt-2">
+                                        {data.officialLinks.map((l, i) => (
+                                            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="text-jaipur-pink text-xs font-medium hover:underline">{l.label} →</a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </InfoModal>
+            );
+        };
+
+        const ContactPage = ({ onClose, data }) => {
+            const [form, setForm] = useState({ name: '', email: '', message: '' });
+            const [status, setStatus] = useState('idle');
+
+            const submit = async (e) => {
+                e.preventDefault();
+                setStatus('sending');
+                try {
+                    await apiFetch('/contact/message', { method: 'POST', body: JSON.stringify(form) });
+                    setStatus('sent');
+                    setForm({ name: '', email: '', message: '' });
+                } catch (err) {
+                    setStatus('error');
+                }
+            };
+
+            return (
+                <InfoModal title="Contact Us" subtitle="Reach the tourism office directly, or send us a message." onClose={onClose} wide>
+                    {!data ? <div className="loader my-10"></div> : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <div className="space-y-3 mb-6">
+                                    <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+                                        <div className="text-xs uppercase font-bold text-red-600 mb-2">Emergency Numbers</div>
+                                        {data.emergencyNumbers.map((n, i) => (
+                                            <div key={i} className="flex justify-between text-sm py-0.5">
+                                                <span className="text-gray-700">{n.label}</span><span className="font-bold text-gray-900">{n.number}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-700 space-y-1">
+                                        <div><strong>Tourist Helpline:</strong> {data.touristHelpline}</div>
+                                        <div><strong>Tourist Police:</strong> {data.touristPolice}</div>
+                                        <div><strong>{data.office.name}:</strong> {data.office.address}</div>
+                                        <div><strong>Hours:</strong> {data.office.hours}</div>
+                                        <div><strong>Email:</strong> {data.email}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <form onSubmit={submit} className="space-y-3">
+                                <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Your name" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jaipur-pink outline-none" />
+                                <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jaipur-pink outline-none" />
+                                <textarea required value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Message" rows="4" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jaipur-pink outline-none"></textarea>
+                                <button disabled={status === 'sending'} className="w-full bg-jaipur-pink text-white font-bold py-2.5 rounded-lg hover:bg-pink-700 transition disabled:opacity-60">
+                                    {status === 'sending' ? 'Sending...' : 'Send Message'}
+                                </button>
+                                {status === 'sent' && <p className="text-green-600 text-sm">Message sent — thank you!</p>}
+                                {status === 'error' && <p className="text-red-600 text-sm">Could not send your message. Please try again.</p>}
+                            </form>
+                        </div>
+                    )}
+                </InfoModal>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // More tab
+        // ---------------------------------------------------------------
+        const MoreTab = ({ onLogout, places }) => {
+            const [openPage, setOpenPage] = useState(null); // 'history' | 'tickets' | 'travel' | 'contact'
+            const [historyData, setHistoryData] = useState(null);
+            const [travelData, setTravelData] = useState(null);
+            const [contactData, setContactData] = useState(null);
+
+            const open = async (page) => {
+                setOpenPage(page);
+                try {
+                    if (page === 'history' && !historyData) setHistoryData(await apiFetch('/history'));
+                    if (page === 'travel' && !travelData) setTravelData(await apiFetch('/travel'));
+                    if (page === 'contact' && !contactData) setContactData(await apiFetch('/contact'));
+                } catch (err) { /* modal will just show a loader if this fails */ }
+            };
+
+            const menuItems = [
+                { icon: 'landmark', label: 'History of Jaipur', action: () => open('history') },
+                { icon: 'ticket', label: 'Ticket Bookings', action: () => open('tickets') },
+                { icon: 'car', label: 'Travel & Hotel Bookings', action: () => open('travel') },
+                { icon: 'mail', label: 'Contact Us', action: () => open('contact') }
+            ];
+
+            useScrollReveal([]);
+
+            return (
+                <div className="pb-24 pt-6 max-w-4xl mx-auto px-4">
+                    <h2 className="text-3xl font-serif font-bold text-jaipur-dark mb-6 reveal-on-scroll">More</h2>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6 reveal-on-scroll">
+                        {menuItems.map((item, idx) => (
+                            <button key={idx} onClick={item.action} className="w-full flex items-center justify-between p-5 border-b border-gray-100 hover:bg-orange-50 transition text-left">
+                                <div className="flex items-center text-gray-800 font-medium">
+                                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-jaipur-orange mr-4">
+                                        <Icon name={item.icon} size={20} />
+                                    </div>
+                                    {item.label}
+                                </div>
+                                <Icon name="play" size={16} className="text-gray-400 transform rotate-90" />
+                            </button>
+                        ))}
+                        <button onClick={async () => {
+                            try {
+                                const { message } = await apiFetch('/sos', { method: 'POST', body: JSON.stringify({}) });
+                                alert(message);
+                            } catch (err) {
+                                alert('Could not send SOS alert: ' + (err.message || 'unknown error'));
+                            }
+                        }} className="w-full flex items-center justify-between p-5 border-b border-gray-100 hover:bg-red-50 transition text-left">
+                            <div className="flex items-center text-red-600 font-bold">
+                                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 mr-4">
+                                    <Icon name="headset" size={20} />
+                                </div>
+                                SOS Emergency
+                            </div>
+                        </button>
+                        <button onClick={onLogout} className="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition text-left">
+                            <div className="flex items-center text-gray-700 font-medium">
+                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 mr-4">
+                                    <Icon name="x" size={20} />
+                                </div>
+                                Log Out
+                            </div>
+                        </button>
+                    </div>
+
+                    {openPage === 'history' && <HistoryPage data={historyData} onClose={() => setOpenPage(null)} />}
+                    {openPage === 'tickets' && <TicketsPage places={places} onClose={() => setOpenPage(null)} />}
+                    {openPage === 'travel' && <TravelPage data={travelData} onClose={() => setOpenPage(null)} />}
+                    {openPage === 'contact' && <ContactPage data={contactData} onClose={() => setOpenPage(null)} />}
+                </div>
+            );
+        };
+
+        // ---------------------------------------------------------------
+        // App shell
+        // ---------------------------------------------------------------
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('home');
+            const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+            const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+            const [places, setPlaces] = useState([]);
+            const [festivals, setFestivals] = useState([]);
+            const [calendarData, setCalendarData] = useState([]);
+            const [history, setHistory] = useState(null);
+            const [dataLoaded, setDataLoaded] = useState(false);
+            const [dataError, setDataError] = useState('');
+            const [selectedPlace, setSelectedPlace] = useState(null);
+
+            useEffect(() => {
+                const savedUser = localStorage.getItem('rangRastaUser');
+                if (savedUser) setUser(JSON.parse(savedUser));
+            }, []);
+
+            useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
+
+            useEffect(() => {
+                let cancelled = false;
+                (async () => {
+                    try {
+                        const [placesRes, festivalsRes, calendarRes, historyRes] = await Promise.all([
+                            apiFetch('/places'),
+                            apiFetch('/festivals'),
+                            apiFetch('/calendar'),
+                            apiFetch('/history')
+                        ]);
+                        if (cancelled) return;
+                        setPlaces(placesRes.places);
+                        setFestivals(festivalsRes.festivals);
+                        setCalendarData(calendarRes.calendar);
+                        setHistory(historyRes);
+                        setDataLoaded(true);
+                    } catch (err) {
+                        if (!cancelled) setDataError(err.message || 'Could not load Jaipur data. Is the server running?');
+                    }
+                })();
+                return () => { cancelled = true; };
+            }, []);
+
+            const handleLogout = () => {
+                localStorage.removeItem('rangRastaUser');
+                setUser(null);
+                setActiveTab('home');
+            };
+
+            if (!user) return <LoginScreen onLogin={setUser} />;
+
+            if (dataError) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-jaipur-sand p-6 text-center">
+                        <div>
+                            <p className="text-red-600 font-bold mb-2">{dataError}</p>
+                            <p className="text-gray-500 text-sm">Make sure the RangRasta server is running, then refresh this page.</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!dataLoaded) {
+                return <div className="min-h-screen flex items-center justify-center bg-jaipur-sand"><div className="loader"></div></div>;
+            }
+
+            const tabs = [
+                { id: 'home', icon: 'home', label: 'Home' },
+                { id: 'explore', icon: 'compass', label: 'Explore' },
+                { id: 'planner', icon: 'sliders', label: 'AI Planner' },
+                { id: 'more', icon: 'more', label: 'More' }
+            ];
+
+            return (
+                <div className="min-h-screen bg-jaipur-sand relative">
+                    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md shadow-sm">
+                        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <h1 className="text-2xl font-serif font-bold text-jaipur-pink tracking-tight">RangRasta</h1>
+                            <nav className="hidden md:flex space-x-1">
+                                {tabs.map(tab => (
+                                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                                        className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === tab.id ? 'bg-orange-100 text-jaipur-orange' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </nav>
+                            <button className="md:hidden p-2 text-gray-600" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+                                <Icon name="menu" />
+                            </button>
+                        </div>
+
+                        {isDropdownOpen && (
+                            <div className="md:hidden absolute top-16 left-0 right-0 bg-white shadow-lg border-t border-gray-100 z-50">
+                                {tabs.map(tab => (
+                                    <button key={tab.id} onClick={() => { setActiveTab(tab.id); setIsDropdownOpen(false); }}
+                                        className={`w-full text-left px-6 py-4 font-medium border-b border-gray-50 flex items-center ${activeTab === tab.id ? 'text-jaipur-pink bg-pink-50' : 'text-gray-700'}`}>
+                                        <Icon name={tab.icon} size={18} className="mr-3" /> {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </header>
+
+                    <main>
+                        {activeTab === 'home' && <HomeTab user={user} places={places} festivals={festivals} history={history} openCalendar={() => setIsCalendarOpen(true)} setActiveTab={setActiveTab} setSelectedPlace={setSelectedPlace} />}
+                        {activeTab === 'explore' && <ExploreTab places={places} setSelectedPlace={setSelectedPlace} />}
+                        {activeTab === 'planner' && <AITourPlanner user={user} places={places} />}
+                        {activeTab === 'more' && <MoreTab onLogout={handleLogout} places={places} />}
+                    </main>
+
+                    <div className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 z-40 pb-safe">
+                        {tabs.map(tab => (
+                            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                                className={`flex flex-col items-center p-2 rounded-xl w-16 transition ${activeTab === tab.id ? 'text-jaipur-pink' : 'text-gray-500 hover:text-gray-900'}`}>
+                                <Icon name={tab.icon} size={24} />
+                                <span className="text-[10px] mt-1 font-medium">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {isCalendarOpen && <CityCalendar onClose={() => setIsCalendarOpen(false)} calendarData={calendarData} />}
+                    {selectedPlace && <PlaceDetailsModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
