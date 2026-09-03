@@ -6,26 +6,6 @@ the storytelling/"immersive audio" gimmicks and paid-ad placements in favor of
 practical info (hours, entry fees, directions), a wider set of places, and a
 properly working "More" section.
 
-## What's in this revision
-
-- **No repeated images** — every place/festival card renders a unique, generated
-  gradient + icon (deterministic per id), so nothing reuses another place's picture.
-- **No paid ads** — the old `sponsored` flag/"Ad" badge is gone entirely.
-- **23 places** across historical sites, temples, museums, bazaars, food, cinema,
-  arts and parks/nature (up from 10), each with real hours/entry fee/best-time info.
-- **Basic info instead of storytelling** — place details show Overview / Hours /
-  Entry Fee / Best Time / a real "Get Directions" link (Google Maps), not narrated
-  audio chapters or 3D animations.
-- **Smarter AI Tour Planner** — days slider, a ₹1,500–₹40,000+ budget slider, a
-  pace selector (Relaxed/Balanced/Packed), multi-select interest chips, and a
-  "Travelling With" field, all wired into the itinerary generator on the backend.
-- **A working "More" tab** — History of Jaipur, Ticket Bookings, Travel & Hotel
-  Bookings, and Contact Us all open real panels backed by their own API endpoints,
-  instead of `alert()` placeholders.
-
-Data is stored in a simple JSON file (`data/db.json`, created automatically on first
-run) — no external database setup required.
-
 ## Project structure
 
 ```
