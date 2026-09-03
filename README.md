@@ -1,10 +1,9 @@
 # RangRasta — Jaipur Travel Guide
 
 A full-stack RangRasta app: a React (via CDN, no build step) frontend served by a
-small Node/Express backend that owns all the data and logic. This revision removes
+small Node/Express backend that owns all the data and logic (This revision removes
 the storytelling/"immersive audio" gimmicks and paid-ad placements in favor of
-practical info (hours, entry fees, directions), a wider set of places, and a
-properly working "More" section.
+practical info like hours, entry fees, directions).
 
 ## Project structure
 
@@ -35,8 +34,8 @@ npm install
 npm start
 ```
 
-Then open **http://localhost:3000** in your browser — one server, one port, serving
-both the site and its API.
+Then open **http://localhost:3000** in your browser (one server, one port, serving
+both the site and its API).
 
 To run on a different port: `PORT=8080 npm start`.
 
@@ -60,13 +59,13 @@ To run on a different port: `PORT=8080 npm start`.
 ## Notes / next steps if you keep building this
 
 - Auth is intentionally lightweight (no passwords), matching the original app's
-  design — anyone can "sign up" with just a name. Add real authentication before
+  design so, anyone can "sign up" with just a name. Add real authentication before
   this ever handles anything sensitive.
 - The itinerary generator is rule-based (matches interests + budget, then ranks by
   rating). It's a good foundation to swap in a real LLM call later — the API shape
   (`POST /api/planner/generate`) won't need to change on the frontend side.
 - `data/db.json` is plain-text JSON for simplicity. For production, swap it for
-  SQLite/Postgres — the `readDB`/`writeDB` functions in `server.js` are the only
+  SQLite/Postgres and the `readDB`/`writeDB` functions in `server.js` are the only
   place that would need to change.
 - Card art is generated (CSS gradient + icon) instead of stock photography, which
   is what guarantees no two places ever show the same picture. Swap `CardArt` in
