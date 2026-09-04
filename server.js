@@ -1,4 +1,6 @@
 require('dotenv').config();
+const rateLimit = require('express-rate-limit');
+const strictLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -169,7 +171,7 @@ app.get('/api/contact', (req, res) => {
     res.json(CONTACT);
 });
 
-app.post('/api/contact/message', (req, res) => {
+app.post('/api/contact/message', strictLimiter, (req, res) => {
     const { name, email, message } = req.body || {};
     if (!name || !email || !message) {
         return res.status(400).json({ error: 'Name, email and message are all required' });
@@ -310,7 +312,7 @@ app.get('/api/planner/mine', requireUser, (req, res) => {
 // ---------------------------------------------------------------------------
 // SOS
 // ---------------------------------------------------------------------------
-app.post('/api/sos', (req, res) => {
+app.post('/api/sos', strictLimiter, (req, res) => {
     const db = readDB();
     const alert = {
         id: crypto.randomUUID(),
