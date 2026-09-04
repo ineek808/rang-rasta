@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "jest"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,5 +16,9 @@
   },
   "engines": {
     "node": ">=16"
+  },
+  "devDependencies": {
+    "jest": "^30.5.1",
+    "supertest": "^7.2.2"
   }
 }
