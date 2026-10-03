@@ -7,7 +7,7 @@ usually has to hunt for across five different sites into one place.
 
 Live demo: https://rang-rasta-jaipur.vercel.app 
 
-![Home page](screenshots/home.png)
+![Home page](screenshots/landing_page.png)
 
 ## why i made this
 
