@@ -5,7 +5,7 @@
 A web app for people visiting Jaipur for the first time. It puts the things a tourist
 usually has to hunt for across five different sites into one place.
 
-Live demo: https://rang-rasta-jaipur.vercel.app 
+Live demo: https://rang-rasta-dmdv.onrender.com
 
 ![Home page](screenshots/landing_page.png)
 
